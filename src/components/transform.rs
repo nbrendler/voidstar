@@ -59,7 +59,7 @@ impl Transform {
 impl Default for Transform {
     fn default() -> Self {
         let translation = Vector3::new(0., 0., 0.);
-        let rot = UnitQuaternion::from_scaled_axis(Vector3::z());
+        let rot = UnitQuaternion::from_scaled_axis(Vector3::zeros());
         Transform {
             isometry: Isometry3::from_parts(translation.into(), rot),
             scale: Vector3::new(1., 1., 1.),

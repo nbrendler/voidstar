@@ -51,10 +51,10 @@ impl Game {
         let mut physics = Physics::default();
 
         create_player(&mut world, &mut physics);
-        create_static(&mut world, (10., 15.));
-        create_static(&mut world, (20., 15.));
-        create_static(&mut world, (15., 20.));
-        create_static(&mut world, (15., 10.));
+        create_static(&mut world, &mut physics, (10., 15.));
+        create_static(&mut world, &mut physics, (20., 15.));
+        create_static(&mut world, &mut physics, (15., 20.));
+        create_static(&mut world, &mut physics, (15., 10.));
         let mut resources = legion::Resources::default();
         resources.insert(InputState::default());
         resources.insert(InputQueue::default());
@@ -133,11 +133,12 @@ impl Default for Game {
     }
 }
 
-fn create_static(world: &mut legion::World, pos: (f32, f32)) {
+fn create_static(world: &mut legion::World, physics: &mut Physics, pos: (f32, f32)) {
     world.push((
         Transform::default()
             .with_translation(Vector3::new(pos.0, pos.1, 0.))
             .with_scale(Vector3::new(2., 2., 1.)),
+        physics.create_static(|rbb| rbb.translation(pos.0, pos.1)),
         Sprite {
             index: 0,
             color: [1., 0., 1.],
@@ -148,8 +149,8 @@ fn create_static(world: &mut legion::World, pos: (f32, f32)) {
 fn create_player(world: &mut legion::World, physics: &mut Physics) {
     world.push((
         Player,
-        Transform::default().with_translation(Vector3::new(15., 15., 0.)),
-        physics.create_rigid_body(|rbb| rbb.translation(15., 15.).build()),
+        Transform::default().with_translation(Vector3::new(15., 15., 1.)),
+        physics.create_dynamic(|rbb| rbb.translation(15., 15.)),
         Sprite {
             index: 1,
             color: [1., 1., 1.],

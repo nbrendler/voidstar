@@ -83,12 +83,13 @@ impl Renderer {
     }
     pub fn draw(&mut self, world: &mut World) {
         let back_buffer = self.surface.back_buffer().unwrap();
-        let color = [0.141, 0.141, 0.141, 1.];
-        let render_st = &RenderState::default().set_blending(Blending {
-            equation: Equation::Additive,
-            src: Factor::SrcAlpha,
-            dst: Factor::SrcAlphaComplement,
-        });
+        let render_st = RenderState::default()
+            .set_blending(Blending {
+                equation: Equation::Additive,
+                src: Factor::SrcAlpha,
+                dst: Factor::SrcAlphaComplement,
+            })
+            .set_depth_test(None);
 
         let program = &mut self.shader_program;
         let tex = &mut self.spritesheet.texture;
@@ -99,7 +100,7 @@ impl Renderer {
             .new_pipeline_gate()
             .pipeline(
                 &back_buffer,
-                &PipelineState::default().set_clear_color(color),
+                &PipelineState::default(),
                 |pipeline, mut shading_gate| {
                     let bound_tex = pipeline.bind_texture(tex)?;
                     shading_gate.shade(program, |mut iface, uni, mut render_gate| {
@@ -134,7 +135,7 @@ impl Renderer {
                             iface.set(&uni.mc2, model.column(2).into());
                             iface.set(&uni.mc3, model.column(3).into());
                             iface.set(&uni.sprite_color, sprite.color);
-                            render_gate.render(render_st, |mut tess_gate| {
+                            render_gate.render(&render_st, |mut tess_gate| {
                                 tess_gate.render(&tesses[sprite.index])
                             })?
                         }

@@ -7,6 +7,7 @@ use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
 use crate::physics::Physics;
 
 const MAX_VELOCITY: f32 = 100.0;
+const MAX_ANGULAR_VELOCITY: f32 = 5.0;
 
 #[system]
 fn physics(#[resource] physics: &mut Physics) {
@@ -52,21 +53,23 @@ fn player_movement(
     // Ideally this should look at some kind of Key mapping data to figure out which keys do what.
     let mut rb = physics.bodies.get_mut(*handle).unwrap();
     if input_state.is_pressed(Key::Left) || input_state.is_pressed(Key::A) {
-        rb.position
-            .append_rotation_wrt_center_mut(&UnitComplex::new(0.05));
+        rb.apply_torque_impulse(0.5);
     }
     if input_state.is_pressed(Key::Right) || input_state.is_pressed(Key::D) {
-        rb.position
-            .append_rotation_wrt_center_mut(&UnitComplex::new(-0.05));
+        rb.apply_torque_impulse(-0.5);
     }
     if input_state.is_pressed(Key::Up) || input_state.is_pressed(Key::W) {
         let angle = rb.position.rotation.angle();
         rb.apply_force(Vector2::new(100. * -angle.sin(), 100. * angle.cos()));
-        let m = rb.linvel.norm();
-        if m > MAX_VELOCITY {
-            rb.linvel.set_magnitude(MAX_VELOCITY)
-        }
     }
+    let m = rb.linvel.norm();
+    if m > MAX_VELOCITY {
+        rb.linvel.set_magnitude(MAX_VELOCITY);
+    }
+    rb.angvel = rb
+        .angvel
+        .min(MAX_ANGULAR_VELOCITY)
+        .max(-MAX_ANGULAR_VELOCITY);
 }
 
 pub fn init() -> Schedule {
