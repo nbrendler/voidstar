@@ -5,21 +5,24 @@ extern crate nalgebra as na;
 #[macro_use]
 mod utils;
 mod components;
-mod input;
+pub mod input;
 mod physics;
 mod renderer;
 mod spritesheet;
 mod systems;
 
-use legion;
-use na::Vector3;
-use wasm_bindgen::prelude::*;
-use web_sys::{KeyboardEvent, MouseEvent};
-
 use crate::components::{Player, Sprite, Transform};
-use crate::input::{InputEvent, InputQueue, InputState, KeyState};
+#[cfg(target_arch = "wasm32")]
+use crate::input::KeyState;
+use crate::input::{InputEvent, InputQueue, InputState};
 use crate::physics::Physics;
 use crate::systems::init as init_systems;
+#[cfg(not(target_arch = "wasm32"))]
+use glfw::WindowEvent;
+use na::Vector3;
+use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use web_sys::{KeyboardEvent, MouseEvent};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -30,7 +33,6 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen(start)]
 pub fn init() -> Result<(), JsValue> {
     utils::set_panic_hook();
-    log!("Start");
     Ok(())
 }
 
@@ -71,9 +73,16 @@ impl Game {
         self.renderer.draw(&mut self.world);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn log_event(&mut self, e: InputEvent) {
+        let mut input_q = self.resources.get_mut_or_default::<InputQueue>();
+        input_q.push_back(e);
+    }
+
+    #[cfg(target_arch = "wasm32")]
     fn log_event(&mut self, e: InputEvent) {
         let mut input_q = self.resources.get_mut_or_default::<InputQueue>();
-        input_q.push_back(e.into());
+        input_q.push_back(e);
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -100,6 +109,7 @@ impl Game {
         self.log_event(ie);
     }
 
+    #[cfg(target_arch = "wasm32")]
     pub fn log_keyup_event(&mut self, e: KeyboardEvent) {
         let mut ie: InputEvent = e.into();
         match &mut ie {
@@ -109,6 +119,11 @@ impl Game {
             _ => {}
         }
         self.log_event(ie);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn iter_events(&mut self) -> std::sync::mpsc::TryIter<(f64, WindowEvent)> {
+        self.renderer.iter_events()
     }
 }
 

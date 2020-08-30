@@ -1,5 +1,5 @@
 #[cfg(not(target_arch = "wasm32"))]
-use glfw::Context as _;
+use glfw::{Context as _, WindowEvent};
 use legion::*;
 use luminance_derive::{Semantics, UniformInterface, Vertex};
 use luminance_front::blending::{Blending, Equation, Factor};
@@ -15,7 +15,7 @@ use luminance_glfw::GlfwSurface;
 #[cfg(target_arch = "wasm32")]
 use luminance_web_sys::WebSysWebGL2Surface;
 use luminance_windowing::{WindowDim, WindowOpt};
-use nalgebra::{Matrix4, Vector3, Vector4};
+use nalgebra::{Matrix4, Vector3};
 
 use crate::components::{Player, Sprite, Transform};
 use crate::spritesheet::Spritesheet;
@@ -148,6 +148,12 @@ impl Renderer {
 
         swap_buffers(&mut self.surface);
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn iter_events(&mut self) -> std::sync::mpsc::TryIter<(f64, WindowEvent)> {
+        self.surface.window.glfw.poll_events();
+        self.surface.events_rx.try_iter()
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -184,7 +190,11 @@ fn read_image(buf: &[u8]) -> Option<image::RgbaImage> {
 
 #[cfg(target_arch = "wasm32")]
 pub fn create_surface() -> WebSysWebGL2Surface {
-    WebSysWebGL2Surface::new("game", WindowOpt::default())
+    let dim = WindowDim::Windowed {
+        width: 960,
+        height: 540,
+    };
+    WebSysWebGL2Surface::new("game", WindowOpt::default().set_dim(dim))
         .ok()
         .unwrap()
 }

@@ -1,29 +1,32 @@
 use std::collections::{HashSet, VecDeque};
 
+#[cfg(not(target_arch = "wasm32"))]
+use glfw::Key as GKey;
+#[cfg(target_arch = "wasm32")]
 use web_sys::{KeyboardEvent, MouseEvent};
 
 pub type InputQueue = VecDeque<InputEvent>;
 
 #[derive(Default, Debug)]
 pub struct InputState {
-    pressed_keys: HashSet<String>,
-    repeated_key: Option<String>,
+    pressed_keys: HashSet<Key>,
+    repeated_key: Option<Key>,
 }
 
 impl InputState {
-    pub fn release_key(&mut self, code: &str) {
-        self.pressed_keys.remove(code);
+    pub fn release_key(&mut self, code: Key) {
+        self.pressed_keys.remove(&code);
     }
-    pub fn press_key(&mut self, code: &str, repeated: bool) {
-        self.pressed_keys.insert(code.to_owned());
+    pub fn press_key(&mut self, code: Key, repeated: bool) {
+        self.pressed_keys.insert(code);
         if repeated {
-            self.repeated_key = Some(code.to_owned());
+            self.repeated_key = Some(code);
         } else {
             self.repeated_key = None;
         }
     }
-    pub fn is_pressed(&self, code: &str) -> bool {
-        self.pressed_keys.contains(code)
+    pub fn is_pressed(&self, code: Key) -> bool {
+        self.pressed_keys.contains(&code)
     }
 }
 
@@ -45,7 +48,7 @@ pub enum KeyState {
 #[derive(Debug, PartialEq)]
 pub enum InputEvent {
     KeyboardEvent {
-        code: String,
+        code: Key,
         state: KeyState,
         repeated: bool,
     },
@@ -57,6 +60,21 @@ pub enum InputEvent {
     },
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum Key {
+    W,
+    A,
+    S,
+    D,
+    Left,
+    Right,
+    Up,
+    Down,
+    Space,
+    Unmapped,
+}
+
+#[cfg(target_arch = "wasm32")]
 impl From<MouseEvent> for InputEvent {
     fn from(e: MouseEvent) -> InputEvent {
         InputEvent::MouseEvent {
@@ -75,12 +93,48 @@ impl From<MouseEvent> for InputEvent {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 impl From<KeyboardEvent> for InputEvent {
     fn from(e: KeyboardEvent) -> InputEvent {
         InputEvent::KeyboardEvent {
-            code: e.code(),
+            code: (e.code().as_str()).into(),
             state: KeyState::Pressed,
             repeated: e.repeat(),
+        }
+    }
+}
+
+impl From<&str> for Key {
+    fn from(s: &str) -> Key {
+        match s {
+            "KeyW" => Key::W,
+            "KeyA" => Key::A,
+            "KeyS" => Key::S,
+            "KeyD" => Key::D,
+            "ArrowLeft" => Key::Left,
+            "ArrowRight" => Key::Right,
+            "ArrowUp" => Key::Up,
+            "ArrowDown" => Key::Down,
+            "Space" => Key::Space,
+            _ => Key::Unmapped,
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl From<GKey> for Key {
+    fn from(k: glfw::Key) -> Key {
+        match k {
+            GKey::W => Key::W,
+            GKey::A => Key::A,
+            GKey::S => Key::S,
+            GKey::D => Key::D,
+            GKey::Up => Key::Up,
+            GKey::Left => Key::Left,
+            GKey::Right => Key::Right,
+            GKey::Down => Key::Down,
+            GKey::Space => Key::Space,
+            _ => Key::Unmapped,
         }
     }
 }

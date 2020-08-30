@@ -3,7 +3,7 @@ use na::{UnitComplex, Vector2};
 use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Transform};
-use crate::input::{InputEvent, InputQueue, InputState, KeyState};
+use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
 use crate::physics::Physics;
 
 const MAX_VELOCITY: f32 = 100.0;
@@ -31,9 +31,9 @@ fn input(#[resource] input_queue: &mut InputQueue, #[resource] input_state: &mut
                 repeated,
             } => {
                 if state == KeyState::Pressed {
-                    input_state.press_key(&code, repeated)
+                    input_state.press_key(code, repeated)
                 } else {
-                    input_state.release_key(&code)
+                    input_state.release_key(code)
                 }
             }
             // TODO: mouse events
@@ -51,15 +51,15 @@ fn player_movement(
 ) {
     // Ideally this should look at some kind of Key mapping data to figure out which keys do what.
     let mut rb = physics.bodies.get_mut(*handle).unwrap();
-    if input_state.is_pressed("ArrowLeft") || input_state.is_pressed("KeyA") {
+    if input_state.is_pressed(Key::Left) || input_state.is_pressed(Key::A) {
         rb.position
             .append_rotation_wrt_center_mut(&UnitComplex::new(0.05));
     }
-    if input_state.is_pressed("ArrowRight") || input_state.is_pressed("KeyD") {
+    if input_state.is_pressed(Key::Right) || input_state.is_pressed(Key::D) {
         rb.position
             .append_rotation_wrt_center_mut(&UnitComplex::new(-0.05));
     }
-    if input_state.is_pressed("ArrowUp") || input_state.is_pressed("KeyW") {
+    if input_state.is_pressed(Key::Up) || input_state.is_pressed(Key::W) {
         let angle = rb.position.rotation.angle();
         rb.apply_force(Vector2::new(100. * -angle.sin(), 100. * angle.cos()));
         let m = rb.linvel.norm();
