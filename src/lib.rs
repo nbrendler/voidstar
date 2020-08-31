@@ -1,12 +1,24 @@
 #![allow(dead_code)]
 #![allow(unused_macros)]
+#[macro_use]
+extern crate log;
 extern crate nalgebra as na;
 
 // TODO:
-// * Debug Logging
 // * FPS limiter/recorder
 // * Draw colliders
 // * Friction/Inertia
+
+#[cfg(target_arch = "wasm32")]
+use console_log;
+#[cfg(not(target_arch = "wasm32"))]
+use glfw::WindowEvent;
+use log::info;
+use na::Vector3;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
+use web_sys::{KeyboardEvent, MouseEvent};
 
 #[macro_use]
 pub mod utils;
@@ -25,12 +37,6 @@ use crate::input::{InputEvent, InputQueue, InputState};
 use crate::physics::Physics;
 use crate::resources::WorldBounds;
 use crate::systems::init as init_systems;
-#[cfg(not(target_arch = "wasm32"))]
-use glfw::WindowEvent;
-use na::Vector3;
-use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use web_sys::{KeyboardEvent, MouseEvent};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -38,9 +44,11 @@ use web_sys::{KeyboardEvent, MouseEvent};
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(start)]
 pub fn init() -> Result<(), JsValue> {
     utils::set_panic_hook();
+    console_log::init();
     Ok(())
 }
 
@@ -58,6 +66,7 @@ impl Game {
         let mut world = legion::World::default();
         let mut physics = Physics::default();
         let world_bounds = WorldBounds::default();
+        info!("Creating game!");
 
         create_player(&mut world, &mut physics);
         create_static(&mut world, &mut physics, (10., 15.));
@@ -160,7 +169,7 @@ fn create_player(world: &mut legion::World, physics: &mut Physics) {
     world.push((
         Player,
         Transform::default().with_translation(Vector3::new(15., 15., 1.)),
-        physics.create_dynamic(|rbb| rbb.translation(15., 15.)),
+        physics.create_dynamic(|rbb| rbb.translation(15., 15.).can_sleep(false)),
         Sprite {
             index: 1,
             color: [1., 1., 1.],

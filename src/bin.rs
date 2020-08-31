@@ -6,6 +6,7 @@ use wasmlib::input::{InputEvent, KeyState};
 use wasmlib::Game;
 
 fn main() {
+    env_logger::init();
     let mut game = Game::new();
     let mut event_buf = vec![];
     'app: loop {
