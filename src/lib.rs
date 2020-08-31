@@ -2,20 +2,28 @@
 #![allow(unused_macros)]
 extern crate nalgebra as na;
 
+// TODO:
+// * Debug Logging
+// * FPS limiter/recorder
+// * Draw colliders
+// * Friction/Inertia
+
 #[macro_use]
-mod utils;
-mod components;
+pub mod utils;
+pub mod components;
 pub mod input;
-mod physics;
-mod renderer;
-mod spritesheet;
-mod systems;
+pub mod physics;
+pub mod renderer;
+pub mod resources;
+pub mod spritesheet;
+pub mod systems;
 
 use crate::components::{Player, Sprite, Transform};
 #[cfg(target_arch = "wasm32")]
 use crate::input::KeyState;
 use crate::input::{InputEvent, InputQueue, InputState};
 use crate::physics::Physics;
+use crate::resources::WorldBounds;
 use crate::systems::init as init_systems;
 #[cfg(not(target_arch = "wasm32"))]
 use glfw::WindowEvent;
@@ -49,6 +57,7 @@ impl Game {
     pub fn new() -> Self {
         let mut world = legion::World::default();
         let mut physics = Physics::default();
+        let world_bounds = WorldBounds::default();
 
         create_player(&mut world, &mut physics);
         create_static(&mut world, &mut physics, (10., 15.));
@@ -59,6 +68,7 @@ impl Game {
         resources.insert(InputState::default());
         resources.insert(InputQueue::default());
         resources.insert(physics);
+        resources.insert(world_bounds);
 
         Game {
             renderer: renderer::Renderer::new(),
@@ -70,7 +80,7 @@ impl Game {
 
     pub fn tick(&mut self) {
         self.schedule.execute(&mut self.world, &mut self.resources);
-        self.renderer.draw(&mut self.world);
+        self.renderer.draw(&mut self.world, &self.resources);
     }
 
     #[cfg(not(target_arch = "wasm32"))]

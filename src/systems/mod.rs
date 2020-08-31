@@ -1,10 +1,11 @@
 use legion::*;
-use na::{UnitComplex, Vector2};
+use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Transform};
 use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
 use crate::physics::Physics;
+use crate::resources::WorldBounds;
 
 const MAX_VELOCITY: f32 = 100.0;
 const MAX_ANGULAR_VELOCITY: f32 = 5.0;
@@ -44,6 +45,26 @@ fn input(#[resource] input_queue: &mut InputQueue, #[resource] input_state: &mut
 }
 
 #[system(for_each)]
+fn world_wrap(
+    handle: &mut RigidBodyHandle,
+    #[resource] bounds: &WorldBounds,
+    #[resource] physics: &mut Physics,
+) {
+    let mut rb = physics.bodies.get_mut(*handle).unwrap();
+    let v = &mut rb.position.translation.vector;
+    let w = bounds.width as f32;
+    let h = bounds.height as f32;
+
+    if v.x < 0.0 || v.x > w {
+        v.x = (v.x + w) % w;
+    }
+
+    if v.y < 0.0 || v.y > h {
+        v.y = (v.y + h) % h;
+    }
+}
+
+#[system(for_each)]
 fn player_movement(
     _p: &Player,
     handle: &mut RigidBodyHandle,
@@ -78,5 +99,6 @@ pub fn init() -> Schedule {
         .add_system(player_movement_system())
         .add_system(physics_transform_system())
         .add_system(physics_system())
+        .add_system(world_wrap_system())
         .build()
 }

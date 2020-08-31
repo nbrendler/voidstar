@@ -15,9 +15,10 @@ use luminance_glfw::GlfwSurface;
 #[cfg(target_arch = "wasm32")]
 use luminance_web_sys::WebSysWebGL2Surface;
 use luminance_windowing::{WindowDim, WindowOpt};
-use nalgebra::{Matrix4, Vector3};
+use nalgebra::{Matrix4, Vector3, Vector4};
 
 use crate::components::{Player, Sprite, Transform};
+use crate::resources::WorldBounds;
 use crate::spritesheet::Spritesheet;
 
 const VS: &str = include_str!("texture-vs.glsl");
@@ -30,12 +31,44 @@ type RenderSurface = WebSysWebGL2Surface;
 #[cfg(not(target_arch = "wasm32"))]
 type RenderSurface = GlfwSurface;
 
+const SPRITES_PER_HALF_SCREEN: f32 = 15.;
+
+const INSTANCES: [Instance; 9] = [
+    Instance {
+        offset: VertexInstancePosition::new([0., 0.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([-1., 0.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([-1., -1.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([0., -1.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([1., -1.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([1., 0.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([1., 1.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([0., 1.]),
+    },
+    Instance {
+        offset: VertexInstancePosition::new([-1., 1.]),
+    },
+];
+
 pub struct Renderer {
     surface: RenderSurface,
     shader_program: Program<Semantics, (), ShaderInterface>,
     projection: Matrix4<f32>,
     spritesheet: Spritesheet,
-    tesses: Vec<Tess<Vertex>>,
+    tesses: Vec<Tess<Vertex, (), Instance>>,
 }
 
 impl Renderer {
@@ -59,6 +92,7 @@ impl Renderer {
                         })
                         .collect::<Vec<Vertex>>(),
                 )
+                .set_instances(&INSTANCES[..])
                 .set_mode(Mode::TriangleFan)
                 .build()
                 .unwrap();
@@ -66,8 +100,14 @@ impl Renderer {
         }
 
         let aspect_ratio = 960. / 540.;
-        let projection =
-            Matrix4::new_orthographic(-15., 15., -15. / aspect_ratio, 15. / aspect_ratio, -1., 1.);
+        let projection = Matrix4::new_orthographic(
+            -SPRITES_PER_HALF_SCREEN,
+            SPRITES_PER_HALF_SCREEN,
+            -SPRITES_PER_HALF_SCREEN / aspect_ratio,
+            SPRITES_PER_HALF_SCREEN / aspect_ratio,
+            -1.,
+            1.,
+        );
         let shader_program = surface
             .new_shader_program::<Semantics, (), ShaderInterface>()
             .from_strings(VS, None, None, FS)
@@ -81,7 +121,7 @@ impl Renderer {
             tesses,
         }
     }
-    pub fn draw(&mut self, world: &mut World) {
+    pub fn draw(&mut self, world: &mut World, resources: &Resources) {
         let back_buffer = self.surface.back_buffer().unwrap();
         let render_st = RenderState::default()
             .set_blending(Blending {
@@ -113,6 +153,8 @@ impl Renderer {
                                 .unwrap()
                         };
 
+                        let bounds = resources.get::<WorldBounds>().unwrap();
+
                         iface.set(&uni.image, bound_tex.binding());
                         iface.set(&uni.projection, projection.into());
                         iface.set(&uni.pc0, projection.column(0).into());
@@ -124,6 +166,10 @@ impl Renderer {
                         iface.set(&uni.vc1, view.column(1).into());
                         iface.set(&uni.vc2, view.column(2).into());
                         iface.set(&uni.vc3, view.column(3).into());
+                        iface.set(
+                            &uni.world_bounds,
+                            [bounds.width as f32, bounds.height as f32],
+                        );
 
                         let mut sprite_query = <(&Sprite, &Transform)>::query();
                         for (sprite, transform) in sprite_query.iter(world) {
@@ -154,6 +200,12 @@ impl Renderer {
     pub fn iter_events(&mut self) -> std::sync::mpsc::TryIter<(f64, WindowEvent)> {
         self.surface.window.glfw.poll_events();
         self.surface.events_rx.try_iter()
+    }
+}
+
+impl Default for Renderer {
+    fn default() -> Self {
+        Renderer::new()
     }
 }
 
@@ -247,6 +299,8 @@ struct ShaderInterface {
     image: Uniform<TextureBinding<Dim2, NormUnsigned>>,
     #[uniform(unbound)]
     sprite_color: Uniform<[f32; 3]>,
+    #[uniform(unbound)]
+    world_bounds: Uniform<[f32; 2]>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Semantics)]
@@ -255,6 +309,12 @@ pub enum Semantics {
     Position,
     #[sem(name = "tex_co", repr = "[f32; 2]", wrapper = "TexturePosition")]
     Color,
+    #[sem(
+        name = "position",
+        repr = "[f32; 2]",
+        wrapper = "VertexInstancePosition"
+    )]
+    InstancePosition,
 }
 
 #[repr(C)]
@@ -263,4 +323,11 @@ pub enum Semantics {
 struct Vertex {
     pos: VertexPosition,
     tex_coords: TexturePosition,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Vertex)]
+#[vertex(sem = "Semantics", instanced = "true")]
+pub struct Instance {
+    pub offset: VertexInstancePosition,
 }

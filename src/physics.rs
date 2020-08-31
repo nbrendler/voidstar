@@ -1,5 +1,5 @@
 use rapier2d::dynamics::{
-    IntegrationParameters, JointSet, RigidBody, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
+    IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
 };
 use rapier2d::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
 use rapier2d::na::Vector2;
