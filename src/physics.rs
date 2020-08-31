@@ -63,7 +63,7 @@ impl Physics {
         func: F,
     ) -> RigidBodyHandle {
         let builder = func(RigidBodyBuilder::new_static());
-        let collider = ColliderBuilder::cuboid(1., 1.).build();
+        let collider = ColliderBuilder::cuboid(0.5, 0.5).build();
         let h = self.bodies.insert(builder.build());
         self.colliders.insert(collider, h, &mut self.bodies);
         h

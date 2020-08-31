@@ -1,6 +1,8 @@
 use legion::*;
 use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{Duration, Instant};
 
 use crate::components::{Player, Transform};
 use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
@@ -9,6 +11,7 @@ use crate::resources::WorldBounds;
 
 const MAX_VELOCITY: f32 = 100.0;
 const MAX_ANGULAR_VELOCITY: f32 = 5.0;
+const FRICTION: f32 = 50.0;
 
 #[system]
 fn physics(#[resource] physics: &mut Physics) {
@@ -75,13 +78,20 @@ fn player_movement(
     let mut rb = physics.bodies.get_mut(*handle).unwrap();
     if input_state.is_pressed(Key::Left) || input_state.is_pressed(Key::A) {
         rb.apply_torque_impulse(0.5);
+    } else if rb.angvel > 0.0 {
+        rb.angvel -= rb.angvel * (1. / FRICTION);
     }
     if input_state.is_pressed(Key::Right) || input_state.is_pressed(Key::D) {
         rb.apply_torque_impulse(-0.5);
+    } else if rb.angvel < 0.0 {
+        rb.angvel -= rb.angvel * (1. / FRICTION);
     }
     if input_state.is_pressed(Key::Up) || input_state.is_pressed(Key::W) {
         let angle = rb.position.rotation.angle();
         rb.apply_force(Vector2::new(100. * -angle.sin(), 100. * angle.cos()));
+    } else if rb.linvel.norm() > 0.0 {
+        let m = rb.linvel.norm();
+        rb.linvel.set_magnitude(m - m / FRICTION);
     }
     let m = rb.linvel.norm();
     if m > MAX_VELOCITY {
@@ -93,12 +103,41 @@ fn player_movement(
         .max(-MAX_ANGULAR_VELOCITY);
 }
 
-pub fn init() -> Schedule {
-    Schedule::builder()
+#[cfg(not(target_arch = "wasm32"))]
+#[system]
+fn fps(#[state] frame_count: &mut u64, #[state] last_call: &mut std::time::Instant) {
+    *frame_count += 1;
+
+    let elapsed = Instant::now() - *last_call;
+    if elapsed > Duration::from_secs(3) {
+        info!(
+            "FPS: {:02.02}",
+            *frame_count as f64 / elapsed.as_secs() as f64
+        );
+        *frame_count = 0;
+        *last_call = Instant::now();
+    }
+}
+
+fn init_common(builder: &mut legion::systems::Builder) -> &mut legion::systems::Builder {
+    builder
         .add_system(input_system())
         .add_system(player_movement_system())
         .add_system(physics_transform_system())
         .add_system(physics_system())
         .add_system(world_wrap_system())
-        .build()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn init() -> Schedule {
+    let mut builder = Schedule::builder();
+    init_common(&mut builder).build()
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub fn init() -> Schedule {
+    let mut builder = Schedule::builder();
+    init_common(&mut builder);
+
+    builder.add_system(fps_system(0, Instant::now()));
+    builder.build()
 }

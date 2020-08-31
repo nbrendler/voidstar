@@ -20,9 +20,13 @@ use nalgebra::{Matrix4, Vector3, Vector4};
 use crate::components::{Player, Sprite, Transform};
 use crate::resources::WorldBounds;
 use crate::spritesheet::Spritesheet;
+use rapier2d::dynamics::RigidBodyHandle;
 
-const VS: &str = include_str!("texture-vs.glsl");
-const FS: &str = include_str!("texture-fs.glsl");
+const SPRITE_VS: &str = include_str!("texture-vs.glsl");
+const SPRITE_FS: &str = include_str!("texture-fs.glsl");
+
+const DEFAULT_VS: &str = include_str!("vs.glsl");
+const DEFAULT_FS: &str = include_str!("fs.glsl");
 
 const SPRITESHEET: &[u8] = include_bytes!("spritesheet.png");
 
@@ -32,6 +36,24 @@ type RenderSurface = WebSysWebGL2Surface;
 type RenderSurface = GlfwSurface;
 
 const SPRITES_PER_HALF_SCREEN: f32 = 15.;
+
+const COLLIDER_VERTICES: [ColliderVertex; 5] = [
+    ColliderVertex {
+        pos: VertexPosition::new([0., 0.]),
+    },
+    ColliderVertex {
+        pos: VertexPosition::new([0., 1.]),
+    },
+    ColliderVertex {
+        pos: VertexPosition::new([1., 1.]),
+    },
+    ColliderVertex {
+        pos: VertexPosition::new([1., 0.]),
+    },
+    ColliderVertex {
+        pos: VertexPosition::new([0., 0.]),
+    },
+];
 
 const INSTANCES: [Instance; 9] = [
     Instance {
@@ -65,7 +87,8 @@ const INSTANCES: [Instance; 9] = [
 
 pub struct Renderer {
     surface: RenderSurface,
-    shader_program: Program<Semantics, (), ShaderInterface>,
+    default_shader: Program<Semantics, (), DefaultShaderInterface>,
+    sprite_shader: Program<Semantics, (), SpriteShaderInterface>,
     projection: Matrix4<f32>,
     spritesheet: Spritesheet,
     tesses: Vec<Tess<Vertex, (), Instance>>,
@@ -108,19 +131,26 @@ impl Renderer {
             -1.,
             1.,
         );
-        let shader_program = surface
-            .new_shader_program::<Semantics, (), ShaderInterface>()
-            .from_strings(VS, None, None, FS)
+        let default_shader = surface
+            .new_shader_program::<Semantics, (), DefaultShaderInterface>()
+            .from_strings(DEFAULT_VS, None, None, DEFAULT_FS)
+            .expect("Shader program creation")
+            .ignore_warnings();
+        let sprite_shader = surface
+            .new_shader_program::<Semantics, (), SpriteShaderInterface>()
+            .from_strings(SPRITE_VS, None, None, SPRITE_FS)
             .expect("Shader program creation")
             .ignore_warnings();
         Renderer {
             surface,
-            shader_program,
+            default_shader,
+            sprite_shader,
             projection,
             spritesheet,
             tesses,
         }
     }
+
     pub fn draw(&mut self, world: &mut World, resources: &Resources) {
         let back_buffer = self.surface.back_buffer().unwrap();
         let render_st = RenderState::default()
@@ -131,10 +161,19 @@ impl Renderer {
             })
             .set_depth_test(None);
 
-        let program = &mut self.shader_program;
+        let sprite_program = &mut self.sprite_shader;
+        let default_program = &mut self.default_shader;
         let tex = &mut self.spritesheet.texture;
         let projection = self.projection;
         let tesses = &self.tesses;
+        let collider_tess = self
+            .surface
+            .new_tess()
+            .set_vertices(&COLLIDER_VERTICES[..])
+            .set_instances(&INSTANCES[..])
+            .set_mode(Mode::LineStrip)
+            .build()
+            .unwrap();
 
         self.surface
             .new_pipeline_gate()
@@ -143,18 +182,18 @@ impl Renderer {
                 &PipelineState::default(),
                 |pipeline, mut shading_gate| {
                     let bound_tex = pipeline.bind_texture(tex)?;
-                    shading_gate.shade(program, |mut iface, uni, mut render_gate| {
-                        let view: Matrix4<f32> = {
-                            <(&Transform, &Player)>::query()
-                                .iter(world)
-                                .find_map(|(t, _)| {
-                                    t.isometry.translation.to_homogeneous().try_inverse()
-                                })
-                                .unwrap()
-                        };
+                    let view: Matrix4<f32> = {
+                        <(&Transform, &Player)>::query()
+                            .iter(world)
+                            .find_map(|(t, _)| {
+                                t.isometry.translation.to_homogeneous().try_inverse()
+                            })
+                            .unwrap()
+                    };
 
-                        let bounds = resources.get::<WorldBounds>().unwrap();
+                    let bounds = resources.get::<WorldBounds>().unwrap();
 
+                    shading_gate.shade(sprite_program, |mut iface, uni, mut render_gate| {
                         iface.set(&uni.image, bound_tex.binding());
                         iface.set(&uni.projection, projection.into());
                         iface.set(&uni.pc0, projection.column(0).into());
@@ -183,6 +222,34 @@ impl Renderer {
                             iface.set(&uni.sprite_color, sprite.color);
                             render_gate.render(&render_st, |mut tess_gate| {
                                 tess_gate.render(&tesses[sprite.index])
+                            })?
+                        }
+
+                        Ok(())
+                    })?;
+                    shading_gate.shade(default_program, |mut iface, uni, mut render_gate| {
+                        iface.set(&uni.projection, projection.into());
+                        iface.set(&uni.pc0, projection.column(0).into());
+                        iface.set(&uni.pc1, projection.column(1).into());
+                        iface.set(&uni.pc2, projection.column(2).into());
+                        iface.set(&uni.pc3, projection.column(3).into());
+                        iface.set(&uni.view, view.into());
+                        iface.set(&uni.vc0, view.column(0).into());
+                        iface.set(&uni.vc1, view.column(1).into());
+                        iface.set(&uni.vc2, view.column(2).into());
+                        iface.set(&uni.vc3, view.column(3).into());
+                        let mut collider_query = <(&RigidBodyHandle, &Transform)>::query();
+                        for (_, transform) in collider_query.iter(world) {
+                            let mut model = transform.get_matrix();
+                            model *= Matrix4::new_translation(&Vector3::new(-0.5, -0.5, 0.));
+                            iface.set(&uni.model, model.into());
+                            iface.set(&uni.mc0, model.column(0).into());
+                            iface.set(&uni.mc1, model.column(1).into());
+                            iface.set(&uni.mc2, model.column(2).into());
+                            iface.set(&uni.mc3, model.column(3).into());
+                            iface.set(&uni.v_color, [1.0, 0., 0.]);
+                            render_gate.render(&render_st, |mut tess_gate| {
+                                tess_gate.render(&collider_tess)
                             })?
                         }
                         Ok(())
@@ -230,7 +297,7 @@ fn load_texture(surface: &mut RenderSurface, img: image::RgbaImage) -> Texture<D
         .expect("luminance texture creation");
 
     // the first argument disables mipmap generation (we don’t care so far)
-    tex.upload_raw(GenMipmaps::No, &texels).unwrap();
+    tex.upload_raw(GenMipmaps::Yes, &texels).unwrap();
 
     tex
 }
@@ -262,9 +329,44 @@ pub fn create_surface() -> GlfwSurface {
         .ok()
         .unwrap()
 }
+#[derive(UniformInterface)]
+struct DefaultShaderInterface {
+    #[uniform(unbound)]
+    model: Uniform<[[f32; 4]; 4]>,
+    #[uniform(unbound)]
+    mc0: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    mc1: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    mc2: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    mc3: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    projection: Uniform<[[f32; 4]; 4]>,
+    #[uniform(unbound)]
+    pc0: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    pc1: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    pc2: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    pc3: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    view: Uniform<[[f32; 4]; 4]>,
+    #[uniform(unbound)]
+    vc0: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    vc1: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    vc2: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    vc3: Uniform<[f32; 4]>,
+    #[uniform(unbound)]
+    v_color: Uniform<[f32; 3]>,
+}
 
 #[derive(UniformInterface)]
-struct ShaderInterface {
+struct SpriteShaderInterface {
     #[uniform(unbound)]
     model: Uniform<[[f32; 4]; 4]>,
     #[uniform(unbound)]
@@ -330,4 +432,11 @@ struct Vertex {
 #[vertex(sem = "Semantics", instanced = "true")]
 pub struct Instance {
     pub offset: VertexInstancePosition,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Vertex)]
+#[vertex(sem = "Semantics")]
+struct ColliderVertex {
+    pos: VertexPosition,
 }

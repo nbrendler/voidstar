@@ -4,11 +4,6 @@
 extern crate log;
 extern crate nalgebra as na;
 
-// TODO:
-// * FPS limiter/recorder
-// * Draw colliders
-// * Friction/Inertia
-
 #[cfg(target_arch = "wasm32")]
 use console_log;
 #[cfg(not(target_arch = "wasm32"))]
