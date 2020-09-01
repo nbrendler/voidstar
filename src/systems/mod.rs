@@ -1,10 +1,12 @@
+use instant::Instant;
+use legion::systems::CommandBuffer;
+use legion::world::SubWorld;
 use legion::*;
 use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use crate::components::{Player, Transform};
+use crate::components::{Player, Projectile, Transform};
 use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
 use crate::physics::Physics;
 use crate::resources::WorldBounds;
@@ -67,8 +69,26 @@ fn world_wrap(
     }
 }
 
+#[system]
+#[read_component(Player)]
+#[read_component(Transform)]
+fn player_shoot(
+    world: &mut SubWorld,
+    cmd: &mut CommandBuffer,
+    #[resource] input_state: &InputState,
+    #[state] last_shot: &mut Instant,
+) {
+    for (_, t) in <(&Player, &Transform)>::query().iter(world) {
+        if input_state.is_pressed(Key::Space) {
+            let mut start = t.clone();
+            start.isometry.translation.vector *= 1.1;
+            cmd.push((Projectile, start));
+        }
+    }
+}
+
 #[system(for_each)]
-fn player_movement(
+fn player_input(
     _p: &Player,
     handle: &mut RigidBodyHandle,
     #[resource] input_state: &InputState,
@@ -103,9 +123,8 @@ fn player_movement(
         .max(-MAX_ANGULAR_VELOCITY);
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 #[system]
-fn fps(#[state] frame_count: &mut u64, #[state] last_call: &mut std::time::Instant) {
+fn fps(#[state] frame_count: &mut u64, #[state] last_call: &mut Instant) {
     *frame_count += 1;
 
     let elapsed = Instant::now() - *last_call;
@@ -119,25 +138,14 @@ fn fps(#[state] frame_count: &mut u64, #[state] last_call: &mut std::time::Insta
     }
 }
 
-fn init_common(builder: &mut legion::systems::Builder) -> &mut legion::systems::Builder {
-    builder
+pub fn init() -> Schedule {
+    Schedule::builder()
         .add_system(input_system())
-        .add_system(player_movement_system())
+        .add_system(player_input_system())
+        .add_system(player_shoot_system(Instant::now()))
         .add_system(physics_transform_system())
         .add_system(physics_system())
         .add_system(world_wrap_system())
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn init() -> Schedule {
-    let mut builder = Schedule::builder();
-    init_common(&mut builder).build()
-}
-#[cfg(not(target_arch = "wasm32"))]
-pub fn init() -> Schedule {
-    let mut builder = Schedule::builder();
-    init_common(&mut builder);
-
-    builder.add_system(fps_system(0, Instant::now()));
-    builder.build()
+        .add_system(fps_system(0, Instant::now()))
+        .build()
 }

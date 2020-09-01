@@ -4,6 +4,17 @@
 extern crate log;
 extern crate nalgebra as na;
 
+// TODO:
+// platform-independent timing
+// shooting stuff
+// events?
+// damage
+// multi-sprite things
+// asteroid fields
+// crabs
+// the void*
+// collider shapes
+
 #[cfg(target_arch = "wasm32")]
 use console_log;
 #[cfg(not(target_arch = "wasm32"))]

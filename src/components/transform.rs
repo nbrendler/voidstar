@@ -1,6 +1,6 @@
 use na::{Isometry2, Isometry3, Matrix4, UnitQuaternion, Vector3};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Transform {
     pub isometry: Isometry3<f32>,
     pub scale: Vector3<f32>,

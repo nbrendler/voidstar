@@ -5,3 +5,4 @@ pub use sprite::*;
 pub use transform::*;
 
 pub struct Player;
+pub struct Projectile;

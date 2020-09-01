@@ -23,15 +23,9 @@ canvas.addEventListener("keyup", (e) => {
   game.log_keyup_event(e);
 });
 
-let lastCall = Date.now();
-
 const renderLoop = () => {
+  game.tick();
   requestAnimationFrame(renderLoop);
-  let elapsed = Date.now() - lastCall;
-  if (elapsed >= TIME_PER_FRAME) {
-    game.tick();
-    lastCall = Date.now() - (elapsed % TIME_PER_FRAME);
-  }
 };
 
 requestAnimationFrame(renderLoop);
