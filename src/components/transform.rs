@@ -41,7 +41,7 @@ impl Transform {
     pub fn as_2d(&self) -> Isometry2<f32> {
         Isometry2::new(
             self.isometry.translation.vector.xy(),
-            self.isometry.rotation.angle(),
+            self.isometry.rotation.euler_angles().2,
         )
     }
 

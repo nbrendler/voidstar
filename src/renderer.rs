@@ -244,7 +244,7 @@ impl Renderer {
                             iface.set(&uni.mc1, model.column(1).into());
                             iface.set(&uni.mc2, model.column(2).into());
                             iface.set(&uni.mc3, model.column(3).into());
-                            iface.set(&uni.v_color, [1.0, 0., 0.]);
+                            iface.set(&uni.v_color, [0., 0., 0.]);
                             render_gate.render(&render_st, |mut tess_gate| {
                                 tess_gate.render(&collider_tess)
                             })?
@@ -294,7 +294,7 @@ fn load_texture(surface: &mut RenderSurface, img: image::RgbaImage) -> Texture<D
         .expect("luminance texture creation");
 
     // the first argument disables mipmap generation (we don’t care so far)
-    tex.upload_raw(GenMipmaps::Yes, &texels).unwrap();
+    tex.upload_raw(GenMipmaps::No, &texels).unwrap();
 
     tex
 }

@@ -8,12 +8,13 @@ use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Projectile, Sprite, Transform};
+use crate::factories::create_bullet;
 use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
 use crate::physics::Physics;
 use crate::resources::WorldBounds;
 
-const MAX_VELOCITY: f32 = 100.0;
-const MAX_ANGULAR_VELOCITY: f32 = 5.0;
+const MAX_VELOCITY: f32 = 10.0;
+const MAX_ANGULAR_VELOCITY: f32 = 2.0;
 const FRICTION: f32 = 50.0;
 
 #[system]
@@ -82,8 +83,7 @@ fn player_shoot(
     for (_, t) in <(&Player, &Transform)>::query().iter(world) {
         let now = Instant::now();
         if input_state.is_pressed(Key::Space) && now - *last_shot > Duration::from_millis(300) {
-            let mut start = t.clone();
-            let angle = start.isometry.rotation.angle();
+            cmd.push(create_bullet(physics, t.clone()));
 
             *last_shot = now;
         }

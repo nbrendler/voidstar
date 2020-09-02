@@ -75,7 +75,7 @@ impl Game {
         let world_bounds = WorldBounds::default();
         info!("Creating game!");
 
-        create_player(&mut world, &mut physics, &world_bounds);
+        world.push(create_player(&mut physics, &world_bounds));
         let mut resources = legion::Resources::default();
         resources.insert(InputState::default());
         resources.insert(InputQueue::default());
