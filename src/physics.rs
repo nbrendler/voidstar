@@ -47,25 +47,15 @@ impl Physics {
         )
     }
 
-    pub fn create_dynamic<F: FnOnce(RigidBodyBuilder) -> RigidBodyBuilder>(
+    pub fn create(
         &mut self,
-        func: F,
+        rbb: RigidBodyBuilder,
+        collider_builders: Vec<ColliderBuilder>,
     ) -> RigidBodyHandle {
-        let builder = func(RigidBodyBuilder::new_dynamic());
-        let collider = ColliderBuilder::cuboid(1., 1.).build();
-        let h = self.bodies.insert(builder.build());
-        self.colliders.insert(collider, h, &mut self.bodies);
-        h
-    }
-
-    pub fn create_static<F: FnOnce(RigidBodyBuilder) -> RigidBodyBuilder>(
-        &mut self,
-        func: F,
-    ) -> RigidBodyHandle {
-        let builder = func(RigidBodyBuilder::new_static());
-        let collider = ColliderBuilder::cuboid(0.5, 0.5).build();
-        let h = self.bodies.insert(builder.build());
-        self.colliders.insert(collider, h, &mut self.bodies);
+        let h = self.bodies.insert(rbb.build());
+        for cb in collider_builders {
+            self.colliders.insert(cb.build(), h, &mut self.bodies);
+        }
         h
     }
 }

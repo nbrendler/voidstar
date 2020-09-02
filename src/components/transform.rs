@@ -1,4 +1,4 @@
-use na::{Isometry2, Isometry3, Matrix4, UnitQuaternion, Vector3};
+use na::{Complex, Isometry2, Isometry3, Matrix4, UnitQuaternion, Vector3};
 
 #[derive(Clone, Debug)]
 pub struct Transform {
@@ -37,6 +37,12 @@ impl Transform {
         let translation = Vector3::new(val.translation.vector.x, val.translation.vector.y, 0.);
         let rotation = UnitQuaternion::from_scaled_axis(Vector3::z() * val.rotation.angle());
         self.isometry = Isometry3::from_parts(translation.into(), rotation);
+    }
+    pub fn as_2d(&self) -> Isometry2<f32> {
+        Isometry2::new(
+            self.isometry.translation.vector.xy(),
+            self.isometry.rotation.angle(),
+        )
     }
 
     pub fn move_left(&mut self, val: f32) {

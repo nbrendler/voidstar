@@ -205,10 +205,7 @@ impl Renderer {
                         iface.set(&uni.vc1, view.column(1).into());
                         iface.set(&uni.vc2, view.column(2).into());
                         iface.set(&uni.vc3, view.column(3).into());
-                        iface.set(
-                            &uni.world_bounds,
-                            [bounds.width as f32, bounds.height as f32],
-                        );
+                        iface.set(&uni.world_bounds, bounds.as_f32().into());
 
                         let mut sprite_query = <(&Sprite, &Transform)>::query();
                         for (sprite, transform) in sprite_query.iter(world) {

@@ -1,12 +1,13 @@
+use std::time::Duration;
+
 use instant::Instant;
 use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
 use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
-use std::time::Duration;
 
-use crate::components::{Player, Projectile, Transform};
+use crate::components::{Player, Projectile, Sprite, Transform};
 use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
 use crate::physics::Physics;
 use crate::resources::WorldBounds;
@@ -57,15 +58,14 @@ fn world_wrap(
 ) {
     let mut rb = physics.bodies.get_mut(*handle).unwrap();
     let v = &mut rb.position.translation.vector;
-    let w = bounds.width as f32;
-    let h = bounds.height as f32;
+    let bounds = bounds.as_f32();
 
-    if v.x < 0.0 || v.x > w {
-        v.x = (v.x + w) % w;
+    if v.x < 0.0 || v.x > bounds.x {
+        v.x = (v.x + bounds.x) % bounds.x;
     }
 
-    if v.y < 0.0 || v.y > h {
-        v.y = (v.y + h) % h;
+    if v.y < 0.0 || v.y > bounds.y {
+        v.y = (v.y + bounds.y) % bounds.y;
     }
 }
 
@@ -76,13 +76,16 @@ fn player_shoot(
     world: &mut SubWorld,
     cmd: &mut CommandBuffer,
     #[resource] input_state: &InputState,
+    #[resource] physics: &mut Physics,
     #[state] last_shot: &mut Instant,
 ) {
     for (_, t) in <(&Player, &Transform)>::query().iter(world) {
-        if input_state.is_pressed(Key::Space) {
+        let now = Instant::now();
+        if input_state.is_pressed(Key::Space) && now - *last_shot > Duration::from_millis(300) {
             let mut start = t.clone();
-            start.isometry.translation.vector *= 1.1;
-            cmd.push((Projectile, start));
+            let angle = start.isometry.rotation.angle();
+
+            *last_shot = now;
         }
     }
 }

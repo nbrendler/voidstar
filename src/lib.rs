@@ -1,11 +1,12 @@
 #![allow(dead_code)]
-#![allow(unused_macros)]
+#![allow(unused_macros, dead_code, unused_imports)]
 #[macro_use]
 extern crate log;
+extern crate legion;
 extern crate nalgebra as na;
+extern crate rapier2d;
 
 // TODO:
-// platform-independent timing
 // shooting stuff
 // events?
 // damage
@@ -20,7 +21,6 @@ use console_log;
 #[cfg(not(target_arch = "wasm32"))]
 use glfw::WindowEvent;
 use log::info;
-use na::Vector3;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
@@ -29,6 +29,7 @@ use web_sys::{KeyboardEvent, MouseEvent};
 #[macro_use]
 pub mod utils;
 pub mod components;
+pub mod factories;
 pub mod input;
 pub mod physics;
 pub mod renderer;
@@ -36,7 +37,7 @@ pub mod resources;
 pub mod spritesheet;
 pub mod systems;
 
-use crate::components::{Player, Sprite, Transform};
+use crate::factories::create_player;
 #[cfg(target_arch = "wasm32")]
 use crate::input::KeyState;
 use crate::input::{InputEvent, InputQueue, InputState};
@@ -74,11 +75,7 @@ impl Game {
         let world_bounds = WorldBounds::default();
         info!("Creating game!");
 
-        create_player(&mut world, &mut physics);
-        create_static(&mut world, &mut physics, (10., 15.));
-        create_static(&mut world, &mut physics, (20., 15.));
-        create_static(&mut world, &mut physics, (15., 20.));
-        create_static(&mut world, &mut physics, (15., 10.));
+        create_player(&mut world, &mut physics, &world_bounds);
         let mut resources = legion::Resources::default();
         resources.insert(InputState::default());
         resources.insert(InputQueue::default());
@@ -156,29 +153,4 @@ impl Default for Game {
     fn default() -> Self {
         Self::new()
     }
-}
-
-fn create_static(world: &mut legion::World, physics: &mut Physics, pos: (f32, f32)) {
-    world.push((
-        Transform::default()
-            .with_translation(Vector3::new(pos.0, pos.1, 0.))
-            .with_scale(Vector3::new(2., 2., 1.)),
-        physics.create_static(|rbb| rbb.translation(pos.0, pos.1)),
-        Sprite {
-            index: 0,
-            color: [1., 0., 1.],
-        },
-    ));
-}
-
-fn create_player(world: &mut legion::World, physics: &mut Physics) {
-    world.push((
-        Player,
-        Transform::default().with_translation(Vector3::new(15., 15., 1.)),
-        physics.create_dynamic(|rbb| rbb.translation(15., 15.).can_sleep(false)),
-        Sprite {
-            index: 1,
-            color: [1., 1., 1.],
-        },
-    ));
 }
