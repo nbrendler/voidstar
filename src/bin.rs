@@ -2,8 +2,8 @@ use glfw::{Action, Key, WindowEvent};
 
 mod input;
 
-use wasmlib::input::{InputEvent, KeyState};
-use wasmlib::Game;
+use voidstar_lib::input::{InputEvent, KeyState};
+use voidstar_lib::Game;
 
 fn main() {
     env_logger::init();

@@ -5,11 +5,11 @@ authors = ["Nikolai Brendler <nbrendler@gmail.com>"]
 edition = "2018"
 
 [lib]
-name = "wasmlib"
+name = "voidstar_lib"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "gameharness"
+name = "voidstar-bin"
 path = "src/bin.rs"
 
 [features]

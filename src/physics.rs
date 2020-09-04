@@ -3,7 +3,9 @@ use rapier2d::dynamics::{
 };
 use rapier2d::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
 use rapier2d::na::Vector2;
-use rapier2d::pipeline::PhysicsPipeline;
+use rapier2d::pipeline::{EventHandler, PhysicsPipeline};
+
+use crate::resources::PhysicsEventCollector;
 
 pub struct Physics {
     pipeline: PhysicsPipeline,
@@ -14,11 +16,17 @@ pub struct Physics {
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
     pub joints: JointSet,
-    event_handler: (),
+    pub event_handler: PhysicsEventCollector,
 }
 
 impl Default for Physics {
     fn default() -> Self {
+        Physics::new()
+    }
+}
+
+impl Physics {
+    pub fn new() -> Self {
         Physics {
             pipeline: PhysicsPipeline::new(),
             gravity: Vector2::new(0., 0.),
@@ -28,12 +36,9 @@ impl Default for Physics {
             bodies: RigidBodySet::new(),
             colliders: ColliderSet::new(),
             joints: JointSet::new(),
-            event_handler: (),
+            event_handler: PhysicsEventCollector::default(),
         }
     }
-}
-
-impl Physics {
     pub fn step(&mut self) {
         self.pipeline.step(
             &self.gravity,

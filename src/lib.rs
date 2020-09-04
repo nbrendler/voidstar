@@ -7,14 +7,17 @@ extern crate nalgebra as na;
 extern crate rapier2d;
 
 // TODO:
-// shooting stuff
-// events?
+// bullet culling (oldest // offscreen)
+// asteroids
 // damage
 // multi-sprite things
-// asteroid fields
 // crabs
 // the void*
+// collecting stuff
+// AI
+// UI
 // collider shapes
+// animations
 
 #[cfg(target_arch = "wasm32")]
 use console_log;
@@ -29,6 +32,7 @@ use web_sys::{KeyboardEvent, MouseEvent};
 #[macro_use]
 pub mod utils;
 pub mod components;
+pub mod event_queue;
 pub mod factories;
 pub mod input;
 pub mod physics;
@@ -36,14 +40,16 @@ pub mod renderer;
 pub mod resources;
 pub mod spritesheet;
 pub mod systems;
+pub mod types;
 
 use crate::factories::create_player;
 #[cfg(target_arch = "wasm32")]
 use crate::input::KeyState;
-use crate::input::{InputEvent, InputQueue, InputState};
+use crate::input::{InputEvent, InputState};
 use crate::physics::Physics;
-use crate::resources::WorldBounds;
+use crate::resources::{PhysicsEventCollector, WorldBounds};
 use crate::systems::init as init_systems;
+use crate::types::InputEventQueue;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -78,7 +84,8 @@ impl Game {
         world.push(create_player(&mut physics, &world_bounds));
         let mut resources = legion::Resources::default();
         resources.insert(InputState::default());
-        resources.insert(InputQueue::default());
+        resources.insert(InputEventQueue::default());
+        resources.insert(physics.event_handler.clone());
         resources.insert(physics);
         resources.insert(world_bounds);
 
@@ -97,14 +104,13 @@ impl Game {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn log_event(&mut self, e: InputEvent) {
-        let mut input_q = self.resources.get_mut_or_default::<InputQueue>();
-        input_q.push_back(e);
+        let mut input_q = self.resources.get_mut_or_default::<InputEventQueue>();
+        input_q.push(e);
     }
-
     #[cfg(target_arch = "wasm32")]
     fn log_event(&mut self, e: InputEvent) {
-        let mut input_q = self.resources.get_mut_or_default::<InputQueue>();
-        input_q.push_back(e);
+        let mut input_q = self.resources.get_mut_or_default::<InputEventQueue>();
+        input_q.push(e);
     }
 
     #[cfg(target_arch = "wasm32")]

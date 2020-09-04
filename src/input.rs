@@ -5,8 +5,6 @@ use glfw::Key as GKey;
 #[cfg(target_arch = "wasm32")]
 use web_sys::{KeyboardEvent, MouseEvent};
 
-pub type InputQueue = VecDeque<InputEvent>;
-
 #[derive(Default, Debug)]
 pub struct InputState {
     pressed_keys: HashSet<Key>,

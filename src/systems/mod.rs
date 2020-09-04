@@ -8,10 +8,12 @@ use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Projectile, Sprite, Transform};
+use crate::event_queue::Drain;
 use crate::factories::create_bullet;
-use crate::input::{InputEvent, InputQueue, InputState, Key, KeyState};
+use crate::input::{InputEvent, InputState, Key, KeyState};
 use crate::physics::Physics;
-use crate::resources::WorldBounds;
+use crate::resources::{PhysicsEventCollector, WorldBounds};
+use crate::types::*;
 
 const MAX_VELOCITY: f32 = 10.0;
 const MAX_ANGULAR_VELOCITY: f32 = 2.0;
@@ -31,8 +33,14 @@ fn physics_transform(t: &mut Transform, handle: &RigidBodyHandle, #[resource] ph
 }
 
 #[system]
-fn input(#[resource] input_queue: &mut InputQueue, #[resource] input_state: &mut InputState) {
-    for e in input_queue.drain(..) {
+fn physics_events(#[resource] event_handler: &mut PhysicsEventCollector) {
+    for c in event_handler.contact_queue.get_mut().drain() {}
+    for p in event_handler.proximity_queue.get_mut().drain() {}
+}
+
+#[system]
+fn input(#[resource] input_queue: &mut InputEventQueue, #[resource] input_state: &mut InputState) {
+    for e in input_queue.get_mut().drain() {
         match e {
             InputEvent::KeyboardEvent {
                 code,
@@ -148,6 +156,7 @@ pub fn init() -> Schedule {
         .add_system(player_shoot_system(Instant::now()))
         .add_system(physics_transform_system())
         .add_system(physics_system())
+        .add_system(physics_events_system())
         .add_system(world_wrap_system())
         .add_system(fps_system(0, Instant::now()))
         .build()
