@@ -32,6 +32,7 @@ use web_sys::{KeyboardEvent, MouseEvent};
 #[macro_use]
 pub mod utils;
 pub mod components;
+pub mod constants;
 pub mod event_queue;
 pub mod factories;
 pub mod input;
@@ -47,9 +48,9 @@ use crate::factories::create_player;
 use crate::input::KeyState;
 use crate::input::{InputEvent, InputState};
 use crate::physics::Physics;
-use crate::resources::{PhysicsEventCollector, WorldBounds};
+use crate::resources::*;
 use crate::systems::init as init_systems;
-use crate::types::InputEventQueue;
+use crate::types::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -76,10 +77,12 @@ pub struct Game {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 impl Game {
     pub fn new() -> Self {
+        info!("Creating game!");
+
         let mut world = legion::World::default();
         let mut physics = Physics::default();
         let world_bounds = WorldBounds::default();
-        info!("Creating game!");
+        let window_dimensions = WindowDimensions::default();
 
         world.push(create_player(&mut physics, &world_bounds));
         let mut resources = legion::Resources::default();
@@ -88,9 +91,11 @@ impl Game {
         resources.insert(physics.event_handler.clone());
         resources.insert(physics);
         resources.insert(world_bounds);
+        resources.insert(window_dimensions);
+        resources.insert(ViewMatrix::default());
 
         Game {
-            renderer: renderer::Renderer::new(),
+            renderer: renderer::Renderer::new(&window_dimensions),
             world,
             resources,
             schedule: init_systems(),

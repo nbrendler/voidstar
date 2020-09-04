@@ -16,11 +16,14 @@ use luminance_glfw::GlfwSurface;
 use luminance_web_sys::WebSysWebGL2Surface;
 use luminance_windowing::{WindowDim, WindowOpt};
 use nalgebra::{Matrix4, Vector3, Vector4};
+use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Sprite, Transform};
+use crate::constants::SPRITES_PER_HALF_SCREEN;
+use crate::resources::WindowDimensions;
 use crate::resources::WorldBounds;
 use crate::spritesheet::Spritesheet;
-use rapier2d::dynamics::RigidBodyHandle;
+use crate::types::*;
 
 const SPRITE_VS: &str = include_str!("texture-vs.glsl");
 const SPRITE_FS: &str = include_str!("texture-fs.glsl");
@@ -34,8 +37,6 @@ const SPRITESHEET: &[u8] = include_bytes!("spritesheet.png");
 type RenderSurface = WebSysWebGL2Surface;
 #[cfg(not(target_arch = "wasm32"))]
 type RenderSurface = GlfwSurface;
-
-const SPRITES_PER_HALF_SCREEN: f32 = 15.;
 
 const COLLIDER_VERTICES: [ColliderVertex; 5] = [
     ColliderVertex {
@@ -95,8 +96,8 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new() -> Self {
-        let mut surface = create_surface();
+    pub fn new(dims: &WindowDimensions) -> Self {
+        let mut surface = create_surface(dims);
         let img = read_image(SPRITESHEET).expect("Failed to load spritesheet");
         let tex = load_texture(&mut surface, img);
         let [w, h] = tex.size();
@@ -122,12 +123,11 @@ impl Renderer {
             tesses.push(tess);
         }
 
-        let aspect_ratio = 960. / 540.;
         let projection = Matrix4::new_orthographic(
             -SPRITES_PER_HALF_SCREEN,
             SPRITES_PER_HALF_SCREEN,
-            -SPRITES_PER_HALF_SCREEN / aspect_ratio,
-            SPRITES_PER_HALF_SCREEN / aspect_ratio,
+            -SPRITES_PER_HALF_SCREEN / dims.aspect_ratio,
+            SPRITES_PER_HALF_SCREEN / dims.aspect_ratio,
             -1.,
             1.,
         );
@@ -182,14 +182,7 @@ impl Renderer {
                 &PipelineState::default(),
                 |pipeline, mut shading_gate| {
                     let bound_tex = pipeline.bind_texture(tex)?;
-                    let view: Matrix4<f32> = {
-                        <(&Transform, &Player)>::query()
-                            .iter(world)
-                            .find_map(|(t, _)| {
-                                t.isometry.translation.to_homogeneous().try_inverse()
-                            })
-                            .unwrap()
-                    };
+                    let view = resources.get::<ViewMatrix>().unwrap().0;
 
                     let bounds = resources.get::<WorldBounds>().unwrap();
 
@@ -269,7 +262,7 @@ impl Renderer {
 
 impl Default for Renderer {
     fn default() -> Self {
-        Renderer::new()
+        Renderer::new(&WindowDimensions::default())
     }
 }
 
@@ -306,10 +299,10 @@ fn read_image(buf: &[u8]) -> Option<image::RgbaImage> {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn create_surface() -> WebSysWebGL2Surface {
+pub fn create_surface(dims: &WindowDimensions) -> WebSysWebGL2Surface {
     let dim = WindowDim::Windowed {
-        width: 960,
-        height: 540,
+        width: dims.w,
+        height: dims.h,
     };
     WebSysWebGL2Surface::new("game", WindowOpt::default().set_dim(dim))
         .ok()
@@ -317,10 +310,10 @@ pub fn create_surface() -> WebSysWebGL2Surface {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn create_surface() -> GlfwSurface {
+pub fn create_surface(dims: &WindowDimensions) -> GlfwSurface {
     let dim = WindowDim::Windowed {
-        width: 960,
-        height: 540,
+        width: dims.w,
+        height: dims.h,
     };
     GlfwSurface::new_gl33("No Tilearino", WindowOpt::default().set_dim(dim))
         .ok()

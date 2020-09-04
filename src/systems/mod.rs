@@ -8,11 +8,12 @@ use na::Vector2;
 use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Projectile, Sprite, Transform};
+use crate::constants::SPRITES_PER_HALF_SCREEN;
 use crate::event_queue::Drain;
 use crate::factories::create_bullet;
 use crate::input::{InputEvent, InputState, Key, KeyState};
 use crate::physics::Physics;
-use crate::resources::{PhysicsEventCollector, WorldBounds};
+use crate::resources::{PhysicsEventCollector, WindowDimensions, WorldBounds};
 use crate::types::*;
 
 const MAX_VELOCITY: f32 = 10.0;
@@ -36,6 +37,27 @@ fn physics_transform(t: &mut Transform, handle: &RigidBodyHandle, #[resource] ph
 fn physics_events(#[resource] event_handler: &mut PhysicsEventCollector) {
     for c in event_handler.contact_queue.get_mut().drain() {}
     for p in event_handler.proximity_queue.get_mut().drain() {}
+}
+
+#[system(for_each)]
+fn culling(
+    cmd: &mut CommandBuffer,
+    cull_t: &Transform,
+    _: &Projectile,
+    e: &Entity,
+    #[resource] dims: &WindowDimensions,
+    #[resource] view: &ViewMatrix,
+) {
+    // Manual culling of things that are offscreen, like bullets.
+
+    let pos = view.0 * cull_t.isometry.translation.vector.push(1.);
+    if pos.x < -SPRITES_PER_HALF_SCREEN
+        || pos.x > SPRITES_PER_HALF_SCREEN
+        || pos.y < -SPRITES_PER_HALF_SCREEN / dims.aspect_ratio
+        || pos.y > SPRITES_PER_HALF_SCREEN / dims.aspect_ratio
+    {
+        cmd.remove(*e);
+    }
 }
 
 #[system]
@@ -133,6 +155,15 @@ fn player_input(
         .min(MAX_ANGULAR_VELOCITY)
         .max(-MAX_ANGULAR_VELOCITY);
 }
+#[system(for_each)]
+fn player_position(_p: &Player, t: &Transform, #[resource] view: &mut ViewMatrix) {
+    *view.0 = *t
+        .isometry
+        .translation
+        .to_homogeneous()
+        .try_inverse()
+        .unwrap();
+}
 
 #[system]
 fn fps(#[state] frame_count: &mut u64, #[state] last_call: &mut Instant) {
@@ -155,9 +186,11 @@ pub fn init() -> Schedule {
         .add_system(player_input_system())
         .add_system(player_shoot_system(Instant::now()))
         .add_system(physics_transform_system())
+        .add_system(player_position_system())
         .add_system(physics_system())
         .add_system(physics_events_system())
         .add_system(world_wrap_system())
+        .add_system(culling_system())
         .add_system(fps_system(0, Instant::now()))
         .build()
 }

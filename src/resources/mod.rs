@@ -33,3 +33,20 @@ impl EventHandler for PhysicsEventCollector {
         self.proximity_queue.push(e);
     }
 }
+
+#[derive(Debug, Copy, Clone)]
+pub struct WindowDimensions {
+    pub aspect_ratio: f32,
+    pub w: u32,
+    pub h: u32,
+}
+
+impl Default for WindowDimensions {
+    fn default() -> Self {
+        WindowDimensions {
+            w: 960,
+            h: 540,
+            aspect_ratio: 960_f32 / 540_f32,
+        }
+    }
+}

@@ -1,0 +1,1 @@
+pub const SPRITES_PER_HALF_SCREEN: f32 = 15.;

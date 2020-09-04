@@ -1,0 +1,3 @@
+[alias]
+watch-wasm = ["watch", "-i", "pkg/*", "-i", ".gitignore", "-s", "wasm-pack build -- --features wasm --no-default-features"]
+watch-native = ["watch", "-i", "pkg/*", "-i", ".gitignore", "--features", "native"]
