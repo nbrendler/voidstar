@@ -1,6 +1,6 @@
-use na::{Complex, Isometry2, Isometry3, Matrix4, UnitQuaternion, Vector3};
+use na::{Complex, Isometry2, Isometry3, Matrix4, UnitQuaternion, Vector2, Vector3};
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Transform {
     pub isometry: Isometry3<f32>,
     pub scale: Vector3<f32>,
@@ -70,5 +70,17 @@ impl Default for Transform {
             isometry: Isometry3::from_parts(translation.into(), rot),
             scale: Vector3::new(1., 1., 1.),
         }
+    }
+}
+
+impl From<(f32, f32)> for Transform {
+    fn from(tuple: (f32, f32)) -> Self {
+        Transform::default().with_translation(Vector3::new(tuple.0, tuple.1, 0.0))
+    }
+}
+
+impl From<Vector2<f32>> for Transform {
+    fn from(v: Vector2<f32>) -> Self {
+        Transform::default().with_translation(v.push(0.0))
     }
 }

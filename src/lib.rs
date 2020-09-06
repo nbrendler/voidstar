@@ -5,9 +5,11 @@ extern crate log;
 extern crate legion;
 extern crate nalgebra as na;
 extern crate rapier2d;
+#[macro_use]
+extern crate bitflags;
 
 // TODO:
-// bullet culling (oldest // offscreen)
+// figure out how to do entity creation in a non-terrible way
 // asteroids
 // damage
 // multi-sprite things
@@ -18,6 +20,8 @@ extern crate rapier2d;
 // UI
 // collider shapes
 // animations
+
+use std::collections::HashMap;
 
 #[cfg(target_arch = "wasm32")]
 use console_log;
@@ -43,7 +47,7 @@ pub mod spritesheet;
 pub mod systems;
 pub mod types;
 
-use crate::factories::create_player;
+use crate::factories::{AsteroidBuilder, EntityBuilder, PlayerBuilder};
 #[cfg(target_arch = "wasm32")]
 use crate::input::KeyState;
 use crate::input::{InputEvent, InputState};
@@ -84,11 +88,14 @@ impl Game {
         let world_bounds = WorldBounds::default();
         let window_dimensions = WindowDimensions::default();
 
-        world.push(create_player(&mut physics, &world_bounds));
+        PlayerBuilder::starting_from((world_bounds.as_f32() / 2.0).into())
+            .create(&mut world, &mut physics);
+        AsteroidBuilder::default()
+            .add_asteroid((50., 30.))
+            .create(&mut world, &mut physics);
         let mut resources = legion::Resources::default();
         resources.insert(InputState::default());
         resources.insert(InputEventQueue::default());
-        resources.insert(physics.event_handler.clone());
         resources.insert(physics);
         resources.insert(world_bounds);
         resources.insert(window_dimensions);
@@ -109,12 +116,12 @@ impl Game {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub fn log_event(&mut self, e: InputEvent) {
-        let mut input_q = self.resources.get_mut_or_default::<InputEventQueue>();
+        let input_q = self.resources.get_or_default::<InputEventQueue>();
         input_q.push(e);
     }
     #[cfg(target_arch = "wasm32")]
     fn log_event(&mut self, e: InputEvent) {
-        let mut input_q = self.resources.get_mut_or_default::<InputEventQueue>();
+        let input_q = self.resources.get_or_default::<InputEventQueue>();
         input_q.push(e);
     }
 

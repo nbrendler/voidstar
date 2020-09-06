@@ -1,11 +1,16 @@
-use rapier2d::dynamics::{
-    IntegrationParameters, JointSet, RigidBodyBuilder, RigidBodyHandle, RigidBodySet,
-};
-use rapier2d::geometry::{BroadPhase, ColliderBuilder, ColliderSet, NarrowPhase};
+use std::collections::HashMap;
+
+use legion::Entity;
+use legion::Resources;
+use rapier2d::dynamics::{IntegrationParameters, JointSet, RigidBodySet};
+use rapier2d::geometry::{BroadPhase, ColliderSet, ContactEvent, NarrowPhase, ProximityEvent};
 use rapier2d::na::Vector2;
 use rapier2d::pipeline::{EventHandler, PhysicsPipeline};
 
-use crate::resources::PhysicsEventCollector;
+pub use rapier2d::dynamics::{RigidBodyBuilder, RigidBodyHandle};
+pub use rapier2d::geometry::{ColliderBuilder, Proximity};
+
+use crate::event_queue::SharedEventQueue;
 
 pub struct Physics {
     pipeline: PhysicsPipeline,
@@ -16,17 +21,11 @@ pub struct Physics {
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
     pub joints: JointSet,
-    pub event_handler: PhysicsEventCollector,
+    event_handler: PhysicsEventCollector,
 }
 
 impl Default for Physics {
     fn default() -> Self {
-        Physics::new()
-    }
-}
-
-impl Physics {
-    pub fn new() -> Self {
         Physics {
             pipeline: PhysicsPipeline::new(),
             gravity: Vector2::new(0., 0.),
@@ -39,6 +38,9 @@ impl Physics {
             event_handler: PhysicsEventCollector::default(),
         }
     }
+}
+
+impl Physics {
     pub fn step(&mut self) {
         self.pipeline.step(
             &self.gravity,
@@ -62,5 +64,62 @@ impl Physics {
             self.colliders.insert(cb.build(), h, &mut self.bodies);
         }
         h
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum EntityContactEvent {
+    Started(Entity, Entity),
+    Stopped(Entity, Entity),
+}
+
+#[derive(Copy, Clone)]
+pub struct EntityProximityEvent {
+    e1: Entity,
+    e2: Entity,
+    prev_status: Proximity,
+    new_status: Proximity,
+}
+
+#[derive(Clone, Default)]
+struct PhysicsEventCollector {
+    entity_map: HashMap<RigidBodyHandle, Entity>,
+    contact_queue: SharedEventQueue<EntityContactEvent>,
+    proximity_queue: SharedEventQueue<EntityProximityEvent>,
+}
+
+impl EventHandler for PhysicsEventCollector {
+    fn handle_contact_event(&self, e: ContactEvent) {
+        match e {
+            ContactEvent::Started(h1, h2) => {
+                let contact_entity_1 = self.entity_map.get(&h1).unwrap();
+                let contact_entity_2 = self.entity_map.get(&h2).unwrap();
+
+                self.contact_queue.push(EntityContactEvent::Started(
+                    *contact_entity_1,
+                    *contact_entity_2,
+                ));
+            }
+            ContactEvent::Stopped(h1, h2) => {
+                let contact_entity_1 = self.entity_map.get(&h1).unwrap();
+                let contact_entity_2 = self.entity_map.get(&h2).unwrap();
+
+                self.contact_queue.push(EntityContactEvent::Stopped(
+                    *contact_entity_1,
+                    *contact_entity_2,
+                ));
+            }
+        }
+    }
+    fn handle_proximity_event(&self, e: ProximityEvent) {
+        let collider_1 = self.entity_map.get(&e.collider1).unwrap();
+        let collider_2 = self.entity_map.get(&e.collider2).unwrap();
+
+        self.proximity_queue.push(EntityProximityEvent {
+            e1: *collider_1,
+            e2: *collider_2,
+            prev_status: e.prev_status,
+            new_status: e.new_status,
+        });
     }
 }

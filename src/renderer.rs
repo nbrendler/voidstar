@@ -16,10 +16,10 @@ use luminance_glfw::GlfwSurface;
 use luminance_web_sys::WebSysWebGL2Surface;
 use luminance_windowing::{WindowDim, WindowOpt};
 use nalgebra::{Matrix4, Vector3, Vector4};
-use rapier2d::dynamics::RigidBodyHandle;
 
 use crate::components::{Player, Sprite, Transform};
 use crate::constants::SPRITES_PER_HALF_SCREEN;
+use crate::physics::RigidBodyHandle;
 use crate::resources::WindowDimensions;
 use crate::resources::WorldBounds;
 use crate::spritesheet::Spritesheet;

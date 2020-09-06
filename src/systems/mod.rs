@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use instant::Instant;
@@ -5,15 +6,14 @@ use legion::systems::CommandBuffer;
 use legion::world::SubWorld;
 use legion::*;
 use na::Vector2;
-use rapier2d::dynamics::RigidBodyHandle;
 
-use crate::components::{Player, Projectile, Sprite, Transform};
+use crate::components::*;
 use crate::constants::SPRITES_PER_HALF_SCREEN;
 use crate::event_queue::Drain;
-use crate::factories::create_bullet;
+use crate::factories::{BulletBuilder, EntityBuilder};
 use crate::input::{InputEvent, InputState, Key, KeyState};
-use crate::physics::Physics;
-use crate::resources::{PhysicsEventCollector, WindowDimensions, WorldBounds};
+use crate::physics::{Physics, RigidBodyHandle};
+use crate::resources::*;
 use crate::types::*;
 
 const MAX_VELOCITY: f32 = 10.0;
@@ -23,6 +23,8 @@ const FRICTION: f32 = 50.0;
 #[system]
 fn physics(#[resource] physics: &mut Physics) {
     physics.step();
+
+    // deal with events here
 }
 
 #[system(for_each)]
@@ -33,29 +35,26 @@ fn physics_transform(t: &mut Transform, handle: &RigidBodyHandle, #[resource] ph
     t.set_isometry_2d(rb.position);
 }
 
-#[system]
-fn physics_events(#[resource] event_handler: &mut PhysicsEventCollector) {
-    for c in event_handler.contact_queue.get_mut().drain() {}
-    for p in event_handler.proximity_queue.get_mut().drain() {}
-}
-
 #[system(for_each)]
 fn culling(
     cmd: &mut CommandBuffer,
     cull_t: &Transform,
-    _: &Projectile,
+    _: &Cull,
     e: &Entity,
     #[resource] dims: &WindowDimensions,
     #[resource] view: &ViewMatrix,
 ) {
     // Manual culling of things that are offscreen, like bullets.
 
+    // BUG: this culls things that wrap around the world boundary before the player has.
+    // try all 9 possible positions?
     let pos = view.0 * cull_t.isometry.translation.vector.push(1.);
     if pos.x < -SPRITES_PER_HALF_SCREEN
         || pos.x > SPRITES_PER_HALF_SCREEN
         || pos.y < -SPRITES_PER_HALF_SCREEN / dims.aspect_ratio
         || pos.y > SPRITES_PER_HALF_SCREEN / dims.aspect_ratio
     {
+        debug!("Culling bullet {:?} (pos: {:?}", e, pos);
         cmd.remove(*e);
     }
 }
@@ -113,7 +112,9 @@ fn player_shoot(
     for (_, t) in <(&Player, &Transform)>::query().iter(world) {
         let now = Instant::now();
         if input_state.is_pressed(Key::Space) && now - *last_shot > Duration::from_millis(300) {
-            cmd.push(create_bullet(physics, t.clone()));
+            let builder = BulletBuilder::starting_from(*t, 30.0);
+            let e = cmd.push(builder.components()[0]);
+            cmd.add_component(e, builder.create_physics(physics, &[e]));
 
             *last_shot = now;
         }
@@ -188,7 +189,6 @@ pub fn init() -> Schedule {
         .add_system(physics_transform_system())
         .add_system(player_position_system())
         .add_system(physics_system())
-        .add_system(physics_events_system())
         .add_system(world_wrap_system())
         .add_system(culling_system())
         .add_system(fps_system(0, Instant::now()))
