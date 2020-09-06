@@ -10,7 +10,7 @@ use rapier2d::pipeline::{EventHandler, PhysicsPipeline};
 pub use rapier2d::dynamics::{RigidBodyBuilder, RigidBodyHandle};
 pub use rapier2d::geometry::{ColliderBuilder, Proximity};
 
-use crate::event_queue::SharedEventQueue;
+use crate::event_queue::{Drain, SharedEventQueue};
 
 pub struct Physics {
     pipeline: PhysicsPipeline,
@@ -54,8 +54,33 @@ impl Physics {
         )
     }
 
+    pub fn cleanup(&mut self, world: &mut legion::World) {
+        let mut to_remove = vec![];
+        for (h, e) in self.event_handler.entity_map.iter() {
+            if world.entry(*e).is_none() {
+                to_remove.push(*h);
+            }
+        }
+
+        if cfg!(debug) && !to_remove.is_empty() {
+            debug!("Physics cleanup. Removing {} rigid bodies", to_remove.len());
+        }
+
+        for h in to_remove.iter() {
+            self.pipeline.remove_rigid_body(
+                *h,
+                &mut self.broad_phase,
+                &mut self.narrow_phase,
+                &mut self.bodies,
+                &mut self.colliders,
+                &mut self.joints,
+            );
+        }
+    }
+
     pub fn create(
         &mut self,
+        entity: Entity,
         rbb: RigidBodyBuilder,
         collider_builders: Vec<ColliderBuilder>,
     ) -> RigidBodyHandle {
@@ -63,22 +88,36 @@ impl Physics {
         for cb in collider_builders {
             self.colliders.insert(cb.build(), h, &mut self.bodies);
         }
+        self.event_handler.entity_map.insert(h, entity);
         h
+    }
+
+    // TODO: figure out how to do this without allocating a Vec
+    pub fn proximity_events(&mut self) -> Vec<EntityProximityEvent> {
+        self.event_handler
+            .proximity_queue
+            .get_mut()
+            .drain()
+            .collect()
+    }
+
+    pub fn contact_events(&mut self) -> Vec<EntityContactEvent> {
+        self.event_handler.contact_queue.get_mut().drain().collect()
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum EntityContactEvent {
     Started(Entity, Entity),
     Stopped(Entity, Entity),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct EntityProximityEvent {
-    e1: Entity,
-    e2: Entity,
-    prev_status: Proximity,
-    new_status: Proximity,
+    pub e1: Entity,
+    pub e2: Entity,
+    pub prev_status: Proximity,
+    pub new_status: Proximity,
 }
 
 #[derive(Clone, Default)]

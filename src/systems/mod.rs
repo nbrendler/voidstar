@@ -21,10 +21,33 @@ const MAX_ANGULAR_VELOCITY: f32 = 2.0;
 const FRICTION: f32 = 50.0;
 
 #[system]
-fn physics(#[resource] physics: &mut Physics) {
+#[read_component(EntityTag)]
+fn physics(world: &mut SubWorld, #[resource] physics: &mut Physics) {
     physics.step();
 
-    // deal with events here
+    for e in physics.proximity_events().iter() {
+        let (etag1, etag2) = {
+            let entity1 = world.entry_ref(e.e1).unwrap();
+            let entity2 = world.entry_ref(e.e2).unwrap();
+            (
+                entity1.into_component::<EntityTag>().ok().unwrap(),
+                entity2.into_component::<EntityTag>().ok().unwrap(),
+            )
+        };
+
+        match (*etag1, *etag2) {
+            (EntityTag::PROJECTILE, EntityTag::ASTEROID) => {
+                info!("hit! {:?}", e.e2);
+            }
+            (EntityTag::ASTEROID, EntityTag::PROJECTILE) => {
+                info!("hit! {:?}", e.e1);
+            }
+            (_, _) => {}
+        }
+    }
+    for e in physics.contact_events().iter() {
+        info!("{:?}", e);
+    }
 }
 
 #[system(for_each)]
@@ -114,7 +137,7 @@ fn player_shoot(
         if input_state.is_pressed(Key::Space) && now - *last_shot > Duration::from_millis(300) {
             let builder = BulletBuilder::starting_from(*t, 30.0);
             let e = cmd.push(builder.components()[0]);
-            cmd.add_component(e, builder.create_physics(physics, &[e]));
+            cmd.add_component(e, builder.create_physics(physics, &[e])[0]);
 
             *last_shot = now;
         }

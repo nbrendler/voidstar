@@ -9,7 +9,6 @@ extern crate rapier2d;
 extern crate bitflags;
 
 // TODO:
-// figure out how to do entity creation in a non-terrible way
 // asteroids
 // damage
 // multi-sprite things
@@ -92,6 +91,8 @@ impl Game {
             .create(&mut world, &mut physics);
         AsteroidBuilder::default()
             .add_asteroid((50., 30.))
+            .add_asteroid((45., 30.))
+            .add_asteroid((55., 30.))
             .create(&mut world, &mut physics);
         let mut resources = legion::Resources::default();
         resources.insert(InputState::default());
@@ -112,6 +113,9 @@ impl Game {
     pub fn tick(&mut self) {
         self.schedule.execute(&mut self.world, &mut self.resources);
         self.renderer.draw(&mut self.world, &self.resources);
+
+        //let mut physics = self.resources.get_mut::<Physics>().unwrap();
+        //physics.cleanup(&mut self.world);
     }
 
     #[cfg(not(target_arch = "wasm32"))]

@@ -14,15 +14,13 @@ pub trait EntityBuilder {
     type Components: legion::storage::IntoComponentSource;
 
     fn components(&self) -> Self::Components;
-    fn into_components(self) -> Self::Components
-    where
-        Self: Sized,
-    {
-        self.components()
-    }
     fn create(&self, world: &mut World, physics: &mut Physics) {
+        // create entities without their physics components so we can tell the physics system about
+        // the entity ID
         let entities = self.create_entities(world);
+        // now create the physics components in physics world
         let handles = self.create_physics(physics, &entities);
+        // update the entities with their physics components on the ECS side
         self.update_world(world, &entities, &handles);
     }
     fn create_entities(&self, world: &mut World) -> Vec<Entity> {
@@ -31,7 +29,9 @@ pub trait EntityBuilder {
     fn create_physics(&self, physics: &mut Physics, entities: &[Entity]) -> Vec<RigidBodyHandle>;
     fn update_world(&self, world: &mut World, entities: &[Entity], handles: &[RigidBodyHandle]) {
         for (e, h) in entities.iter().zip(handles.iter()) {
-            world.entry(*e).map(|mut e| e.add_component(h.clone()));
+            if let Some(mut e) = world.entry(*e) {
+                e.add_component(*h);
+            }
         }
     }
 }
@@ -56,7 +56,7 @@ impl EntityBuilder for AsteroidBuilder {
             .iter()
             .map(|p| {
                 (
-                    p.clone(),
+                    *p,
                     Sprite {
                         index: 3,
                         color: [1., 1., 1.],
@@ -74,7 +74,7 @@ impl EntityBuilder for AsteroidBuilder {
             .map(|(e, t)| {
                 let rbb = RigidBodyBuilder::new_dynamic().position(t.as_2d());
                 let collider = ColliderBuilder::ball(0.2).density(20.0);
-                physics.create(rbb, vec![collider])
+                physics.create(*e, rbb, vec![collider])
             })
             .collect()
     }
@@ -86,8 +86,10 @@ pub struct BulletBuilder {
 }
 
 impl BulletBuilder {
-    pub fn starting_from(t: Transform, speed: f32) -> Self {
-        let bullet_vec = speed * (t.isometry.rotation * Vector3::y());
+    pub fn starting_from(mut t: Transform, speed: f32) -> Self {
+        let mut bullet_vec = t.isometry.rotation * Vector3::y() * 1.25;
+        t.isometry.translation.vector += bullet_vec;
+        bullet_vec.set_magnitude(speed);
         BulletBuilder {
             positions: vec![(t, bullet_vec)],
         }
@@ -121,13 +123,13 @@ impl EntityBuilder for BulletBuilder {
         entities
             .iter()
             .zip(self.positions.iter())
-            .map(|(_e, (t, bullet))| {
+            .map(|(e, (t, bullet))| {
                 let rbb = RigidBodyBuilder::new_dynamic()
                     .position(t.as_2d())
                     .linvel(bullet.x, bullet.y)
                     .can_sleep(false);
-                let collider = ColliderBuilder::cuboid(0.1, 0.3).sensor(true);
-                physics.create(rbb, vec![collider])
+                let collider = ColliderBuilder::cuboid(0.3, 0.3).sensor(true);
+                physics.create(*e, rbb, vec![collider])
             })
             .collect()
     }
@@ -176,7 +178,7 @@ impl EntityBuilder for PlayerBuilder {
                     )
                     .can_sleep(false);
                 let collider = ColliderBuilder::cuboid(0.5, 0.5);
-                physics.create(rbb, vec![collider])
+                physics.create(*e, rbb, vec![collider])
             })
             .collect()
     }
