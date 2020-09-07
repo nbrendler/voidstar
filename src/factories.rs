@@ -10,7 +10,7 @@ use crate::physics::{ColliderBuilder, Physics, RigidBodyBuilder, RigidBodyHandle
 use crate::resources::WorldBounds;
 use crate::types::*;
 
-pub trait EntityBuilder {
+pub trait EntityBuilder: std::fmt::Debug {
     type Components: legion::storage::IntoComponentSource;
 
     fn components(&self) -> Self::Components;
@@ -24,7 +24,9 @@ pub trait EntityBuilder {
         self.update_world(world, &entities, &handles);
     }
     fn create_entities(&self, world: &mut World) -> Vec<Entity> {
-        world.extend(self.components()).to_vec()
+        let v = world.extend(self.components()).to_vec();
+        info!("Created entity {:?} with components: {:?}", v, self);
+        v
     }
     fn create_physics(&self, physics: &mut Physics, entities: &[Entity]) -> Vec<RigidBodyHandle>;
     fn update_world(&self, world: &mut World, entities: &[Entity], handles: &[RigidBodyHandle]) {
@@ -49,7 +51,7 @@ impl AsteroidBuilder {
 }
 
 impl EntityBuilder for AsteroidBuilder {
-    type Components = Vec<(Transform, Sprite, EntityTag)>;
+    type Components = Vec<(Transform, Sprite, EntityTag, Health)>;
 
     fn components(&self) -> Self::Components {
         self.positions
@@ -62,6 +64,7 @@ impl EntityBuilder for AsteroidBuilder {
                         color: [1., 1., 1.],
                     },
                     EntityTag::ASTEROID,
+                    Health(4),
                 )
             })
             .collect::<Self::Components>()
@@ -112,6 +115,7 @@ impl EntityBuilder for BulletBuilder {
                     EntityTag::PROJECTILE,
                     Projectile {
                         can_hit: EntityTag::ENEMY_OR_ASTEROID,
+                        damage: 1,
                     },
                     Cull,
                 )
@@ -147,7 +151,7 @@ impl PlayerBuilder {
 }
 
 impl EntityBuilder for PlayerBuilder {
-    type Components = Vec<(Transform, Sprite, EntityTag, Player)>;
+    type Components = Vec<(Transform, Sprite, EntityTag, Player, Health)>;
 
     fn components(&self) -> Self::Components {
         self.positions
@@ -161,6 +165,7 @@ impl EntityBuilder for PlayerBuilder {
                     },
                     EntityTag::PROJECTILE,
                     Player,
+                    Health(30),
                 )
             })
             .collect::<Self::Components>()

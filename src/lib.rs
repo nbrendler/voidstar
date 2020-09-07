@@ -9,11 +9,10 @@ extern crate rapier2d;
 extern crate bitflags;
 
 // TODO:
-// asteroids
 // damage
-// multi-sprite things
 // crabs
 // the void*
+// multi-sprite things
 // collecting stuff
 // AI
 // UI

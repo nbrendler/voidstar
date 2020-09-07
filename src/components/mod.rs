@@ -22,8 +22,12 @@ pub struct Player;
 #[derive(Copy, Clone, Debug)]
 pub struct Projectile {
     pub can_hit: EntityTag,
+    pub damage: u8,
 }
 
 /// should be culled when it goes offscreen
 #[derive(Copy, Clone, Debug)]
 pub struct Cull;
+
+#[derive(Copy, Clone, Debug)]
+pub struct Health(pub u16);

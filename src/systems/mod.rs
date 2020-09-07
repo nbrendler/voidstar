@@ -12,7 +12,7 @@ use crate::constants::SPRITES_PER_HALF_SCREEN;
 use crate::event_queue::Drain;
 use crate::factories::{BulletBuilder, EntityBuilder};
 use crate::input::{InputEvent, InputState, Key, KeyState};
-use crate::physics::{Physics, RigidBodyHandle};
+use crate::physics::{Physics, Proximity, RigidBodyHandle};
 use crate::resources::*;
 use crate::types::*;
 
@@ -22,31 +22,46 @@ const FRICTION: f32 = 50.0;
 
 #[system]
 #[read_component(EntityTag)]
-fn physics(world: &mut SubWorld, #[resource] physics: &mut Physics) {
+#[read_component(Projectile)]
+fn physics(world: &mut SubWorld, cmd: &mut CommandBuffer, #[resource] physics: &mut Physics) {
     physics.step();
 
     for e in physics.proximity_events().iter() {
-        let (etag1, etag2) = {
-            let entity1 = world.entry_ref(e.e1).unwrap();
-            let entity2 = world.entry_ref(e.e2).unwrap();
-            (
-                entity1.into_component::<EntityTag>().ok().unwrap(),
-                entity2.into_component::<EntityTag>().ok().unwrap(),
-            )
-        };
+        if e.new_status == Proximity::Intersecting {
+            let tag1: Option<&EntityTag> =
+                world.entry_ref(e.e1).and_then(|e| e.into_component().ok());
+            let tag2: Option<&EntityTag> =
+                world.entry_ref(e.e2).and_then(|e| e.into_component().ok());
 
-        match (*etag1, *etag2) {
-            (EntityTag::PROJECTILE, EntityTag::ASTEROID) => {
-                info!("hit! {:?}", e.e2);
+            match (tag1, tag2) {
+                (Some(&EntityTag::PROJECTILE), Some(&tag)) => {
+                    if let Some(proj) = world
+                        .entry_ref(e.e1)
+                        .and_then(|e| e.into_component::<Projectile>().ok())
+                    {
+                        if proj.can_hit & tag == tag {
+                            info!("Hit!: {:?}", e.e2);
+                            cmd.remove(e.e1);
+                        }
+                    }
+                }
+                (Some(&tag), Some(&EntityTag::PROJECTILE)) => {
+                    if let Some(proj) = world
+                        .entry_ref(e.e2)
+                        .and_then(|e| e.into_component::<Projectile>().ok())
+                    {
+                        if proj.can_hit & tag == tag {
+                            info!("Hit!: {:?}", e.e1);
+                            cmd.remove(e.e2);
+                        }
+                    }
+                }
+                (_, _) => {}
             }
-            (EntityTag::ASTEROID, EntityTag::PROJECTILE) => {
-                info!("hit! {:?}", e.e1);
-            }
-            (_, _) => {}
         }
     }
     for e in physics.contact_events().iter() {
-        info!("{:?}", e);
+        info!("Contact {:?}", e);
     }
 }
 
@@ -71,6 +86,7 @@ fn culling(
 
     // BUG: this culls things that wrap around the world boundary before the player has.
     // try all 9 possible positions?
+    // compute distance from player mod boundary?
     let pos = view.0 * cull_t.isometry.translation.vector.push(1.);
     if pos.x < -SPRITES_PER_HALF_SCREEN
         || pos.x > SPRITES_PER_HALF_SCREEN
@@ -136,6 +152,7 @@ fn player_shoot(
         let now = Instant::now();
         if input_state.is_pressed(Key::Space) && now - *last_shot > Duration::from_millis(300) {
             let builder = BulletBuilder::starting_from(*t, 30.0);
+            debug!("bullet: {:?}", builder.components()[0]);
             let e = cmd.push(builder.components()[0]);
             cmd.add_component(e, builder.create_physics(physics, &[e])[0]);
 

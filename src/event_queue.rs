@@ -89,7 +89,7 @@ mod test {
 
     #[test]
     fn drain_events() {
-        let mut e: EventQueue<MyEventType> = EventQueue::default();
+        let e: EventQueue<MyEventType> = EventQueue::default();
         e.push(MyEventType::AnotherEvent);
         e.push(MyEventType::SomeEvent);
         let drained = e.get_mut().drain().collect::<Vec<MyEventType>>();
@@ -103,7 +103,7 @@ mod test {
 
     #[test]
     fn shared_drain_events() {
-        let mut e: SharedEventQueue<MyEventType> = SharedEventQueue::default();
+        let e: SharedEventQueue<MyEventType> = SharedEventQueue::default();
         e.push(MyEventType::AnotherEvent);
         e.push(MyEventType::SomeEvent);
         let drained = e.get_mut().drain().collect::<Vec<MyEventType>>();
